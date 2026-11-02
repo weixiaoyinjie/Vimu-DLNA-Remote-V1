@@ -1,0 +1,56 @@
+name: Build Vimu DLNA Remote APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'Vimu-DLNA-Remote-V1-Source.zip'
+      - '.github/workflows/build-apk.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Extract Android source ZIP
+        shell: bash
+        run: |
+          set -euo pipefail
+          ZIP="Vimu-DLNA-Remote-V1-Source.zip"
+          test -s "$ZIP" || { echo "Missing $ZIP at repository root" >&2; exit 1; }
+          mkdir -p android-project
+          unzip -qo "$ZIP" -d android-project
+          test -s android-project/settings.gradle
+          test -s android-project/app/build.gradle
+          test -s android-project/app/src/main/AndroidManifest.xml
+          test -s android-project/app/src/main/java/com/vimudlna/remote/Upnp.java
+          test -s android-project/app/src/main/java/com/vimudlna/remote/MainActivity.java
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+
+      - name: Build Android APK
+        run: gradle --no-daemon -p android-project :app:assembleDebug --stacktrace
+
+      - name: Publish installable APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Vimu-DLNA-Remote-V1-APK
+          path: android-project/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 30
+          if-no-files-found: error
